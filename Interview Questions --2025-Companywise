@@ -328,21 +328,81 @@ How to run a yaml manifest without a yaml manifest file created.
 		✔ No YAML file created
 		✔ Works for any resource
 		✔ Production-safe
+	kubectl run nginx --image=nginx --restart=Never
+
 ===============================================================================================================================================================================================================>
 Company:HCL 
 exp--> 4-5 
 
 What is git branching strategy used in your organisation
+		CI/CD 			Integration (Very Important)
+		Branch			Pipeline Actions
+		feature/*		Build + Unit Tests
+		dev				Build + Tests + SonarQube
+		qa				Build + Regression + Deploy
+		prod			Manual approval + Deploy
+	Release flow 
+		feature/* → dev → qa → prod
+	Production Bug Fix
+		prod → hotfix/* → prod → dev → qa
+	
 How deployment is done in different environment using git repo
+	Deployments are driven by Git branches. Each environment (dev, QA, prod) is mapped to a specific branch, 
+	and CI/CD pipelines automatically deploy code when changes are merged into those branches, with approvals for higher environments.
+			Trigger
+				✔ Merge to dev
+					CI/CD Actions
+					Build application
+					Run unit tests
+					Static code analysis (SonarQube)
+					Build Docker image
+					Push image to registry
+					Deploy to Dev environment
+				📌 Deployment is automatic
+
 How and from where to clone repo, is there any local repo you are using and then transferring from local to remote or how? (Honestly I didn’t get this Q, if anyone has real time exposure pls explain)
+	In real-time, we clone the remote repository directly to our local machines using HTTPS or SSH. 
+	Developers commit changes locally and push branches back to the remote repo. We do not transfer code from one local machine to another. 
+	Personal Access Tokens (PAT) are used to authenticate with the remote repo securely, replacing passwords, and can have controlled permissions for repo access.
 What is PAT
+	PAT is used for authentication when you interact with remote repositories.
+	Why we need it:
+		Password authentication is deprecated for GitHub, GitLab, etc.
+		PAT acts as a secure token instead of password
+		Can have scopes/permissions:
+		Repo read/write
+		CI/CD access
+
+Package managemen
+
 How to configure sonarqube
+
 How to integrate azure key vault in jenkins / azure pipeline
+
 How to handle merge conflict in git. If 2 people working on same file and did the commit and got conflict err, in how many ways it can be solved (someone explain pls).
+
 What is the output of sonarqube, how to fix if any smell code/vurnabilities  found
+	Run SonarQube scan → generate report
+	Check dashboard → bugs, smells, vulnerabilities
+	Prioritize fixes → critical → major → minor
+	Refactor/fix code → unit test coverage
+	Re-scan → ensure Quality Gate passes
+		This process enforces code quality and security in CI/CD pipelines.
+
+	SonarQube outputs a report showing bugs, vulnerabilities, code smells, duplications, coverage, and technical debt. Each issue has severity and file location. 
+	To fix them, we refactor smelly code, correct bugs, secure vulnerable code, improve test coverage, 
+	and then re-run the scan until the Quality Gate passes. This ensures high-quality, maintainable, and secure code before deployment.
+
+
 Where do you write the code/yaml file for pipeline
+	i write pipeline code using vscode and some of systex is getting from official ducument and changing them as my requirement, one everything is done, i will get it review my code. 
+
 What is inside docker file
+	docker file has set of intructions indie of it, with the help them we will crete docker images. 
+
 How to schedule pipeline, lets say i have validated the pipeline with some update and i want to schedule it to stage/main branch, how to do? (This also someone explain)
+	in jenkins we use poll scm to schedule the pipeline, wheveenver chnages commit to jenkins then jeknins poll scm triggers the build
+		basicaly it uses in scm's which are not supporting for the webhooks
 
 =======================================================================================================================================================================================================================>
 Company:Blue Yoner-: 
