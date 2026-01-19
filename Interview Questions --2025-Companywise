@@ -5,6 +5,10 @@ Interview questions year 2025-:
 Company:Techdome -:
 
 1)Kubernetes architecture
+Kubernetes architecture follows a client-server model that is highly resilient and scalable. It is composed of a control plane (the "brain") 
+that manages the cluster and a set of worker nodes (the "hands") that run the containerized applications
+https://kubernetes.io/docs/concepts/architecture/
+
 2)Deployment vs stateful set
 3)Explain Docker networking and types of network. What is the default network.
 4)Terraform provisioners. 
