@@ -11,23 +11,323 @@ https://kubernetes.io/docs/concepts/architecture/
 
 2)Deployment vs stateful set
 3)Explain Docker networking and types of network. What is the default network.
-4)Terraform provisioners. 
-5)Terraform statefile
-6)Docker image vs container
-7)Docker bind mount vs volume 
+docker network supports different types
+	1. bridge network 
+		bridge netwrok is the by default network
+		whenever we create a container it starts with bridge network
+		how to solve the port conflits 
+	2. host
+		
+	3. none 
+		container will not attacht any of the network to container
+	4. overlay 
+		it running in diffrent nodes as a same network uses in docker swarm 
+4)Terraform provisioners.
+	Provisioners in Terraform are used to execute scripts or commands on a resource after it is created (or before it is destroyed).
+	TYPES OF PROVISONAR
+		local-exec
+			Runs commands on the machine where Terraform is executed
+				resource "null_resource" "example" {
+				  provisioner "local-exec" {
+				    command = "echo EC2 instance created"
+				  }
+				}
 
+		remote-exec
+			Runs commands inside the remote resource (VM, EC2, etc.)
+				resource "aws_instance" "web" {
+					  ami           = "ami-0abcd1234"
+					  instance_type = "t2.micro"
+					  key_name      = "mykey"
+					
+					  provisioner "remote-exec" {
+					    inline = [
+					      "sudo apt update",
+					      "sudo apt install -y nginx",
+					      "sudo systemctl start nginx"
+					    ]
+					  }
+					
+					  connection {
+					    type        = "ssh"
+					    user        = "ubuntu"
+					    private_key = file("mykey.pem")
+					    host        = self.public_ip
+					  }
+				}
+
+
+5)Terraform statefile
+	Terraform state file is the single source of truth that maps:
+	Terraform configuration
+	↔ real infrastructure resources
+	Why State File Is Needed?
+		Terraform uses state to:
+			Track real infrastructure
+			Detect changes (terraform plan)
+			Perform updates and deletes safely
+			Enable resource dependency resolution
+			📌 Terraform is declarative, but state makes it operational.
+	Local State (Default)
+		terraform.tfstate
+		❌ Not suitable for teams
+		❌ Risk of overwrite
+		❌ No locking
+	Remote State (Recommended)
+		AWS S3 + DynamoDB (locking)
+		terraform {
+		  backend "s3" {
+		    bucket         = "tf-state-prod"
+		    key            = "ec2/terraform.tfstate"
+		    region         = "ap-south-1"
+		    dynamodb_table = "terraform-locks"
+		    encrypt        = true
+		  }
+		}
+	State Locking – Why Important?
+
+		Prevents multiple users from running Terraform at the same time.
+		
+		Without locking:
+			❌ State corruption
+			❌ Resource conflicts
+		DynamoDB provides:
+		Exclusive lock
+		Prevents parallel apply
+	State Drift 
+		State drift happens when real infrastructure changes outside Terraform, causing a mismatch between:
+			Terraform state (terraform.tfstate)
+			Actual cloud resources
+		What is Drift?
+			Infrastructure changed outside Terraform.
+			EC2 terminated manually
+			Security group modified via AWS console
+		How to Detect Drift?
+			terraform plan
+			Best practice: Run terraform plan regularly in CI.
+				Terraform compares:
+					✔ desired state (code)
+					❌ actual state (cloud)
+			Decide: Accept or Fix the Drift
+			After detection, choose one:
+				Option A️⃣ Revert Drift (Terraform Wins)
+				Bring infra back to match code.
+					terraform apply
+			Option B️⃣ Accept Drift (Infra Wins)
+				Modify Terraform code
+				terraform apply
+		Refresh State Without Changing Infra
+			old way is 
+				terraform refresh 
+			Recommended way
+					terraform plan -refresh-only
+					terraform apply -refresh-only
+				updates the state
+		Quick Summary (Remember This)
+			Detect → terraform plan
+			Sync state → -refresh-only
+			Fix deleted → apply
+			Accept change → update code
+			Prevent drift → IAM + CI/CD
+6)Docker image vs container
+	docker image created by dockerfile with set of rules written in dockerfile, finally it create package called docker image it uses for container creation
+		use this to build docker image docker build -t app:1.0.0 . 
+	docker container is application runtime env where application will be run in side container, it launches as small machine and runs the app inside of it.
+		use this to create contianer docker run -d -p 8000:8000 --name app-container app:1.0.0
+7)Docker bind mount vs volume 
+	docker bind mount is nothing but
+		docker run -v /host/path:/container/path nginx
+		Uses existing host path
+		Full control over host files
+		Host-dependent
+		No Docker management
+	volume
+		docker run --mount type=bind,source=/host/path,target=/container/path nginx
+		A volume is a Docker-managed storage location.
+		docker volume create mydata
+		docker run -v mydata:/container/path nginx
+		docker run --mount type=volume,source=mydata,target=/container/path nginx
+			Managed by Docker
+			Portable
+			Safer
+			Best for production data
 ==================================================================================>
 Company:LTIMindtree -:
 
 Can we install docker inside a container.
+	Yes, Docker can be installed inside a container using Docker-in-Docker, but it requires privileged mode and is not recommended for production. 
+	The preferred approach is Docker-outside-of-Docker by mounting the host Docker socket, or using tools like Kaniko or Buildah in Kubernetes environments. 
+
 If we have created 3 instances using terraform script and the instance names are mentioned as a list
 Suppose we removed 2nd instance name from the list and applied script again then what will happen to the already 3 instances created before.
-If we have 5 stages in a jenkins pipeline and 5th stage having syntax error then what will happen if we run the pipeline.
-What are some main differences between scripted and declarative pipeline.
-Difference between code quality and code coverage.
-What is default qualitygate in sonar
-How to run a yaml manifest without a yaml manifest file created.
+	Case 1️⃣ Using count with a list (⚠️ Dangerous)
+		ex: ["web1", "web2", "web3"] 
+	index -->	0,		1, 		2
+		variable "instance_names" {
+		  default = ["web1", "web2", "web3"]
+		}
+		resource "aws_instance" "ec2" {
+		  count = length(var.instance_names)
+		  tags = {
+		    Name = var.instance_names[count.index]
+		  }
+		}
+		What Terraform Does Initially
+			Index	Instance
+			0			web1
+			1			web2
+			2			web3
+		Now You Remove 2nd Name (web2)
+			["web1", "web3"]
+		New Index Mapping
+			Index	Instance
+			0		web1
+			1		web3
+		What Happens on terraform apply?
+			Terraform DESTROYS & RECREATES resources
+				Instance	Action
+				web1	✅ No change
+				web2	❌ Destroyed
+				web3	❌ Destroyed
+				web3 (new)	✅ Recreated
+	Case 2️⃣ Using for_each with a set/map (✅ Best Practice)
+		variable "instance_names" {
+	  			default = ["web1", "web2", "web3"]
+			}
+			resource "aws_instance" "ec2" {
+			  for_each = toset(var.instance_names)
+			  tags = {
+			    Name = each.key
+			  }
+		}
+		Initial Creation
+			Terraform creates:
+				web1
+				web2
+				web3
+		What Happens Now?
+			Instance	Action
+			web1		✅ No change
+			web2		❌ Destroyed
+			web3		✅ No change
+		Why for_each Is Safe
+			Feature					count				for_each
+			Identity			Index-based				Key-based
+			List reordering		❌ Dangerous			✅ Safe
+			Removing element	❌ Recreates others		✅ Only removes target
+			Production safe		❌ No						✅ Yes
 
+If we have 5 stages in a jenkins pipeline and 5th stage having syntax error then what will happen if we run the pipeline.
+	When you run a Jenkins pipeline (Declarative or Scripted):
+		Jenkins execution flow
+		Parse the Jenkinsfile
+		Validate syntax
+		Create execution plan
+		Run stages sequentially
+		➡️ Syntax errors are caught in step 1 (parsing phase).
+			So if the 5th stage has a syntax error:
+			❌ Jenkins never starts execution
+			❌ Stages 1–4 will NOT run
+			❌ Pipeline fails immediately
+		WorkflowScript: X: expecting '}', found ''
+	
+What are some main differences between scripted and declarative pipeline.
+	scripted
+	1. 
+		node {
+	  stage('Build') {
+	    sh 'mvn clean package'
+	  }
+	}
+
+	2 
+	try {
+	  sh 'exit 1'
+	} catch (err) {
+	  echo "Failed"
+	}
+
+	3 
+		node('linux') {
+	  stage('Build') {
+	    sh 'make build'
+	  }
+	}
+	4
+	env.APP_ENV = 'prod'
+	declarative pipeline.
+		1
+		pipeline {
+			  agent any
+			  stages {
+			    stage('Build') {
+			      steps {
+			        sh 'mvn clean package'
+			      }
+			    }
+			  }
+			}
+		2 
+		post {
+		  failure {
+		    echo "Build failed"
+		  }
+		  success {
+		    echo "Build succeeded"
+		  }
+		}
+	3 
+		pipeline {
+  			agent { label 'linux' }
+		}
+	4 
+		environment {
+  			APP_ENV = 'prod'
+		}
+
+Difference between code quality and code coverage.
+	Code Quality measures how good and maintainable the code is, while
+		Code quality refers to how clean, readable, maintainable, secure, and reliable the code is.
+			Readability & naming conventions
+			Maintainability
+			Complexity (cyclomatic complexity)
+			Code smells
+			Security vulnerabilities
+			Duplication
+			Performance considerations
+	Code Coverage measures how much of the code is executed by tests.
+			Code coverage shows the percentage of code executed during testing.
+				Types of Coverage
+				Line coverage
+				Branch coverage
+				Function coverage
+				Condition coverage
+				Tools
+				JaCoCo (Java)
+				Coverage.py (Python)
+
+What is default qualitygate in sonar
+	The default quality gate in SonarQube is called “Sonar way”. It enforces quality checks mainly on new code, such as minimum 80% coverage, 
+	A ratings for reliability, security, and maintainability, and low duplication, helping teams improve code quality incrementally.
+How to run a yaml manifest without a yaml manifest file created.
+	Method 1: kubectl apply -f - (MOST IMPORTANT)
+
+		The - tells kubectl to read YAML from stdin.
+		Example
+		kubectl apply -f - <<EOF
+		apiVersion: v1
+		kind: Pod
+		metadata:
+		  name: nginx-pod
+		spec:
+		  containers:
+		  - name: nginx
+		    image: nginx
+		EOF
+		
+		✔ No YAML file created
+		✔ Works for any resource
+		✔ Production-safe
 ===============================================================================================================================================================================================================>
 Company:HCL 
 exp--> 4-5 
